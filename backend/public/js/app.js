@@ -1,95 +1,145 @@
 // ======================================================
-// APP.JS PRO+++ — Cockpit IFR EBLG
+// APP.JS — Cockpit IFR EBLG PRO+++
+// - Orchestration globale
+// - Timers METAR / TAF / FIDS / SONO / ADS-B
+// - Boutons UI (reset map, heatmap, panneaux)
 // ======================================================
 
-import { initMap, toggleNoiseHeatmap } from "./map.js";
-import { updateADSB } from "./map.js";
-import { initMetar, safeLoadMetar } from "./metar.js";
-import { safeLoadTaf } from "./taf.js";
+import { ENDPOINTS } from "./config.js";
+
+import {
+    initMap,
+    resetMapView,
+    toggleNoiseHeatmap,
+    updateADSB
+} from "./map.js";
+
+import {
+    initMetar,
+    safeLoadMetar
+} from "./metar.js";
+
+import {
+    initTaf,
+    safeLoadTaf
+} from "./taf.js";
+
 import { safeLoadFids } from "./fids.js";
 import { loadSonometers } from "./sonometers.js";
 import { checkApiStatus } from "./status.js";
 import { loadLogs } from "./logs.js";
-import { startLiveLogs } from "./logsLive.js";
+import { startLiveLogs } from "./LogsLive.js";
 
 // ======================================================
-// DOMContentLoaded — pipeline cockpit IFR
+// INIT GLOBAL
 // ======================================================
-window.addEventListener("DOMContentLoaded", () => {
-
-    console.log("[APP] Initialisation cockpit IFR…");
-
-    // 1) Carte
+document.addEventListener("DOMContentLoaded", () => {
+    // Carte
     initMap();
 
-    // 2) METAR (piste active + corridor + glide path)
+    // METAR / TAF
     initMetar();
+    initTaf();
 
-    // 3) Modules secondaires
-    safeLoadTaf();
+    // FIDS / SONO / STATUS / LOGS
     safeLoadFids();
     loadSonometers();
     checkApiStatus();
     loadLogs();
     startLiveLogs();
 
-    // 4) ADS-B (Airlabs)
-    updateADSB();
-    setInterval(updateADSB, 8000);
+    // ADS-B
+    startAdsbLoop();
 
-    // 5) Rafraîchissements périodiques
+    // Timers récurrents
+    setupTimers();
+
+    // UI boutons
+    setupUIBindings();
+});
+
+// ======================================================
+// TIMERS
+// ======================================================
+function setupTimers() {
+    // METAR : toutes les 60 s
     setInterval(safeLoadMetar, 60_000);
-    setInterval(safeLoadTaf, 5 * 60_000);
+
+    // TAF : toutes les 10 min
+    setInterval(safeLoadTaf, 10 * 60_000);
+
+    // FIDS : toutes les 60 s
     setInterval(safeLoadFids, 60_000);
-    setInterval(loadSonometers, 60_000);
-    setInterval(checkApiStatus, 30_000);
 
-    // 6) Gestion des onglets
-    const tabs = document.querySelectorAll("#sidebar-tabs button");
-    const panels = document.querySelectorAll("#sidebar-panels .panel");
+    // Sonomètres : toutes les 30 s
+    setInterval(loadSonometers, 30_000);
 
-    tabs.forEach(btn => {
-        btn.addEventListener("click", () => {
-            const tab = btn.dataset.tab;
+    // Statut API : toutes les 60 s
+    setInterval(checkApiStatus, 60_000);
 
-            tabs.forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-
-            panels.forEach(p => p.classList.add("hidden"));
-            document.getElementById(`panel-${tab}`).classList.remove("hidden");
-        });
-    });
-
-    const defaultTab = document.querySelector('#sidebar-tabs button[data-tab="metar"]');
-    if (defaultTab) defaultTab.click();
-
-    // 7) Bouton reset map
-   const resetMapBtn = document.getElementById("btn-reset-map");
-if (resetMapBtn) {
-    resetMapBtn.addEventListener("click", () => {
-        resetMapView();
-    });
+    // Logs “snapshot” : toutes les 2 min
+    setInterval(loadLogs, 120_000);
 }
 
+// ======================================================
+// ADS-B LOOP
+// ======================================================
+function startAdsbLoop() {
+    const POLL_MS = 5_000;
 
-    // 8) Heatmap ON/OFF
-    let noiseHeatmapEnabled = true;
-    const noiseHeatBtn = document.getElementById("btn-noiseheat-toggle");
+    const loop = async () => {
+        try {
+            const r = await fetch(ENDPOINTS.adsb || "/api/adsb");
+            if (!r.ok) throw new Error("HTTP " + r.status);
 
-    if (noiseHeatBtn) {
-        noiseHeatBtn.addEventListener("click", () => {
-            noiseHeatmapEnabled = !noiseHeatmapEnabled;
-            toggleNoiseHeatmap(noiseHeatmapEnabled);
-            noiseHeatBtn.textContent = noiseHeatmapEnabled ? "Heatmap ON" : "Heatmap OFF";
+            const json = await r.json();
+            const list = Array.isArray(json) ? json : (json.aircraft || []);
+
+            updateADSB(list);
+        } catch (err) {
+            console.error("[ADSB] Erreur", err);
+        } finally {
+            setTimeout(loop, POLL_MS);
+        }
+    };
+
+    loop();
+}
+
+// ======================================================
+// UI BINDINGS
+// ======================================================
+function setupUIBindings() {
+    // Reset map
+    const resetBtn = document.getElementById("btn-reset-map");
+    if (resetBtn) {
+        resetBtn.addEventListener("click", () => {
+            resetMapView();
         });
     }
-const noiseZonesBtn = document.getElementById("btn-noisezones-toggle");
-let noiseZonesEnabled = false;
 
-noiseZonesBtn.addEventListener("click", () => {
-    noiseZonesEnabled = !noiseZonesEnabled;
-    toggleNoiseZones(noiseZonesEnabled);
-});
+    // Heatmap bruit
+    const heatmapToggle = document.getElementById("btn-heatmap");
+    if (heatmapToggle) {
+        heatmapToggle.addEventListener("change", (e) => {
+            const state = e.target.checked ?? e.target.classList.contains("active");
+            toggleNoiseHeatmap(state);
+        });
+    }
 
-    console.log("[APP] Cockpit IFR opérationnel");
-});
+    // Panneaux / tabs (optionnel, si présents)
+    const tabs = document.querySelectorAll("[data-panel-target]");
+    tabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            const targetId = tab.getAttribute("data-panel-target");
+            if (!targetId) return;
+
+            document
+                .querySelectorAll(".panel")
+                .forEach(p => p.classList.add("hidden"));
+
+            const panel = document.getElementById(targetId);
+            if (panel) panel.classList.remove("hidden");
+        });
+    });
+}
