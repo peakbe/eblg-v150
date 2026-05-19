@@ -68,6 +68,12 @@ export function initMap() {
 
     console.log("[MAP] Carte initialisée");
 }
+export function toggleNoiseHeatmap(state) {
+    if (!adsbHeatmap) return;
+
+    if (state) adsbHeatmap.addTo(map);
+    else map.removeLayer(adsbHeatmap);
+}
 
 // ======================================================
 // UPDATE ADS-B
