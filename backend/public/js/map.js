@@ -40,6 +40,60 @@ export function initMap() {
     adsbLayer = L.layerGroup().addTo(map);
     log("Map initialisée");
 }
+// ======================================================
+// DESSIN CORRIDORS APPROCHE / DÉPART — PRO+++
+// ======================================================
+
+let approachLayer = null;
+let departureLayer = null;
+
+export function drawApproachCorridor(rwy) {
+    if (!window.map || !window.runwayCorridors) return;
+
+    // Nettoyage
+    if (approachLayer) {
+        window.map.removeLayer(approachLayer);
+        approachLayer = null;
+    }
+
+    const corridor = window.runwayCorridors.find(c => c.runway === rwy);
+    if (!corridor) return;
+
+    // On ne dessine que la moitié "approche"
+    const coords = corridor.coords.slice(0, 4);
+
+    approachLayer = L.polygon(coords, {
+        color: "#00ffff",
+        weight: 2,
+        fillOpacity: 0.10
+    });
+
+    approachLayer.addTo(window.map);
+}
+
+export function drawDepartureCorridor(rwy) {
+    if (!window.map || !window.runwayCorridors) return;
+
+    // Nettoyage
+    if (departureLayer) {
+        window.map.removeLayer(departureLayer);
+        departureLayer = null;
+    }
+
+    const corridor = window.runwayCorridors.find(c => c.runway === rwy);
+    if (!corridor) return;
+
+    // On ne dessine que la moitié "départ"
+    const coords = corridor.coords.slice(4, 8);
+
+    departureLayer = L.polygon(coords, {
+        color: "#ff00ff",
+        weight: 2,
+        fillOpacity: 0.10
+    });
+
+    departureLayer.addTo(window.map);
+}
 
 export function resetMapView() {
     if (!map) return;
