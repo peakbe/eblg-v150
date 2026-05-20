@@ -8,7 +8,6 @@
 
 import { ENDPOINTS } from "./config.js";
 import { fetchJSON, updateStatusPanel } from "./helpers.js";
-import { computeWindComponents } from "./runways.js";
 import { drawApproachCorridor, drawDepartureCorridor } from "./map.js";
 
 const IS_DEV = location.hostname.includes("localhost");
