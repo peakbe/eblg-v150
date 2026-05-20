@@ -120,3 +120,71 @@ function renderADSB(acList) {
         adsbLayer.addLayer(m);
     });
 }
+// ======================================================
+// DEBUG PANEL — FPS / CPU / RENDER — PRO+++
+// ======================================================
+
+let fpsEl = null;
+let cpuEl = null;
+let renderEl = null;
+
+export function initDebugPanel() {
+    fpsEl = document.getElementById("fps");
+    cpuEl = document.getElementById("cpu");
+    renderEl = document.getElementById("render");
+
+    startFPSCounter();
+    startCPUCounter();
+    hookRenderTime();
+}
+
+// ------------------------------------------------------
+// FPS
+// ------------------------------------------------------
+function startFPSCounter() {
+    let last = performance.now();
+
+    function loop(now) {
+        const delta = now - last;
+        last = now;
+
+        if (fpsEl) fpsEl.textContent = delta.toFixed(1);
+
+        requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+}
+
+// ------------------------------------------------------
+// CPU
+// ------------------------------------------------------
+function startCPUCounter() {
+    let last = performance.now();
+
+    setInterval(() => {
+        const now = performance.now();
+        const cpu = now - last;
+        last = now;
+
+        if (cpuEl) cpuEl.textContent = cpu.toFixed(1);
+    }, 200);
+}
+
+// ------------------------------------------------------
+// Render time Leaflet
+// ------------------------------------------------------
+function hookRenderTime() {
+    if (!window.map) return;
+
+    let t0 = 0;
+
+    window.map.on("movestart", () => {
+        t0 = performance.now();
+    });
+
+    window.map.on("moveend", () => {
+        const dt = performance.now() - t0;
+        if (renderEl) renderEl.textContent = dt.toFixed(1);
+    });
+}
